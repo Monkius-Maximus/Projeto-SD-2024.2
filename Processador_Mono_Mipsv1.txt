@@ -1,0 +1,418 @@
+// Módulo principal do processador MIPS Monociclo
+module mips_monocycle(
+    input wire clk,
+    input wire reset
+);
+    // Sinais para o PC
+    wire [31:0] pc_current;
+    wire [31:0] pc_next;
+    wire [31:0] pc_plus4;
+    wire [31:0] branch_addr;
+    wire [31:0] jump_addr;
+    wire pc_src;
+    wire jump;
+    
+    // Sinais da instrução
+    wire [31:0] instruction;
+    wire [5:0] opcode;
+    wire [4:0] rs;
+    wire [4:0] rt;
+    wire [4:0] rd;
+    wire [4:0] shamt;
+    wire [5:0] funct;
+    wire [15:0] immediate;
+    wire [25:0] jump_target;
+    
+    // Sinais de controle
+    wire reg_dst;
+    wire reg_write;
+    wire alu_src;
+    wire mem_write;
+    wire mem_read;
+    wire mem_to_reg;
+    wire branch;
+    wire [1:0] alu_op;
+    
+    // Sinais do banco de registradores
+    wire [4:0] write_reg;
+    wire [31:0] read_data1;
+    wire [31:0] read_data2;
+    wire [31:0] write_data;
+    
+    // Sinais da ALU
+    wire [31:0] alu_in2;
+    wire [3:0] alu_control;
+    wire [31:0] alu_result;
+    wire zero_flag;
+    
+    // Sinais da memória de dados
+    wire [31:0] mem_read_data;
+    
+    // Sinais de extensão de sinal e deslocamento
+    wire [31:0] sign_extended;
+    wire [31:0] shifted_addr;
+    
+    // Atribuição de sinais da instrução
+    assign opcode = instruction[31:26];
+    assign rs = instruction[25:21];
+    assign rt = instruction[20:16];
+    assign rd = instruction[15:11];
+    assign shamt = instruction[10:6];
+    assign funct = instruction[5:0];
+    assign immediate = instruction[15:0];
+    assign jump_target = instruction[25:0];
+    
+    // Cálculo de endereços de branch e jump
+    assign shifted_addr = {sign_extended[29:0], 2'b00};
+    assign branch_addr = pc_plus4 + shifted_addr;
+    assign jump_addr = {pc_plus4[31:28], jump_target, 2'b00};
+    
+    // Extensão de sinal do imediato
+    sign_extend sign_ext(
+        .in(immediate),
+        .out(sign_extended)
+    );
+    
+    // Seleção da fonte do próximo PC
+    assign pc_src = branch & zero_flag;
+    assign pc_next = jump ? jump_addr : (pc_src ? branch_addr : pc_plus4);
+    
+    // PC e somador PC+4
+    pc_register pc_reg(
+        .clk(clk),
+        .reset(reset),
+        .pc_in(pc_next),
+        .pc_out(pc_current)
+    );
+    
+    pc_adder pc_add(
+        .pc_in(pc_current),
+        .pc_out(pc_plus4)
+    );
+    
+    // Memória de instruções
+    instruction_memory imem(
+        .addr(pc_current),
+        .instruction(instruction)
+    );
+    
+    // Unidade de controle principal
+    control_unit ctrl_unit(
+        .opcode(opcode),
+        .reg_dst(reg_dst),
+        .jump(jump),
+        .branch(branch),
+        .mem_read(mem_read),
+        .mem_to_reg(mem_to_reg),
+        .alu_op(alu_op),
+        .mem_write(mem_write),
+        .alu_src(alu_src),
+        .reg_write(reg_write)
+    );
+    
+    // Seleção do registrador de escrita
+    assign write_reg = reg_dst ? rd : rt;
+    
+    // Banco de registradores
+    register_file reg_file(
+        .clk(clk),
+        .reset(reset),
+        .reg_write(reg_write),
+        .read_reg1(rs),
+        .read_reg2(rt),
+        .write_reg(write_reg),
+        .write_data(write_data),
+        .read_data1(read_data1),
+        .read_data2(read_data2)
+    );
+    
+    // Seleção da segunda entrada da ALU
+    assign alu_in2 = alu_src ? sign_extended : read_data2;
+    
+    // Controle da ALU
+    alu_control alu_ctrl(
+        .alu_op(alu_op),
+        .funct(funct),
+        .alu_control(alu_control)
+    );
+    
+    // ALU
+    alu alu_unit(
+        .a(read_data1),
+        .b(alu_in2),
+        .alu_control(alu_control),
+        .result(alu_result),
+        .zero(zero_flag)
+    );
+    
+    // Memória de dados
+    data_memory dmem(
+        .clk(clk),
+        .addr(alu_result),
+        .write_data(read_data2),
+        .mem_write(mem_write),
+        .mem_read(mem_read),
+        .read_data(mem_read_data)
+    );
+    
+    // Seleção dos dados a serem escritos nos registradores
+    assign write_data = mem_to_reg ? mem_read_data : alu_result;
+    
+endmodule
+
+// Módulo de extensão de sinal
+module sign_extend(
+    input wire [15:0] in,
+    output wire [31:0] out
+);
+    assign out = {{16{in[15]}}, in};
+endmodule
+
+// Módulo da memória de instruções
+module instruction_memory(
+    input wire [31:0] addr,
+    output wire [31:0] instruction
+);
+    reg [31:0] mem [0:255];  // 256 palavras de 32 bits
+
+    // Carregar programa de exemplo
+    initial begin
+        // Exemplo: addi $t0, $zero, 5  (opcode=8, rs=0, rt=8, imm=5)
+        mem[0] = 32'h20080005;
+        // Exemplo: addi $t1, $zero, 10 (opcode=8, rs=0, rt=9, imm=10)
+        mem[1] = 32'h2009000A;
+        // Exemplo: add $t2, $t0, $t1   (opcode=0, rs=8, rt=9, rd=10, shamt=0, funct=32)
+        mem[2] = 32'h01095020;
+        // Mais instruções podem ser adicionadas...
+    end
+
+    // Retorna a instrução no endereço / 4 (alinhado a palavras)
+    assign instruction = mem[addr[9:2]];  // Ignora os bits menos significativos
+endmodule
+
+// Módulo da unidade de controle
+module control_unit(
+    input wire [5:0] opcode,
+    output reg reg_dst,
+    output reg jump,
+    output reg branch,
+    output reg mem_read,
+    output reg mem_to_reg,
+    output reg [1:0] alu_op,
+    output reg mem_write,
+    output reg alu_src,
+    output reg reg_write
+);
+    // Definição dos opcodes
+    parameter R_TYPE = 6'b000000;
+    parameter LW     = 6'b100011;
+    parameter SW     = 6'b101011;
+    parameter BEQ    = 6'b000100;
+    parameter ADDI   = 6'b001000;
+    parameter J      = 6'b000010;
+
+    always @(*) begin
+        // Valores default
+        reg_dst = 0;
+        jump = 0;
+        branch = 0;
+        mem_read = 0;
+        mem_to_reg = 0;
+        alu_op = 2'b00;
+        mem_write = 0;
+        alu_src = 0;
+        reg_write = 0;
+        
+        case(opcode)
+            R_TYPE: begin
+                reg_dst = 1;
+                alu_op = 2'b10;
+                reg_write = 1;
+            end
+            LW: begin
+                alu_src = 1;
+                mem_to_reg = 1;
+                reg_write = 1;
+                mem_read = 1;
+            end
+            SW: begin
+                alu_src = 1;
+                mem_write = 1;
+            end
+            BEQ: begin
+                branch = 1;
+                alu_op = 2'b01;
+            end
+            ADDI: begin
+                alu_src = 1;
+                reg_write = 1;
+            end
+            J: begin
+                jump = 1;
+            end
+        endcase
+    end
+endmodule
+
+// Módulo de controle da ALU
+module alu_control(
+    input wire [1:0] alu_op,
+    input wire [5:0] funct,
+    output reg [3:0] alu_control
+);
+    // Códigos da ALU
+    parameter ALU_ADD = 4'b0010;
+    parameter ALU_SUB = 4'b0110;
+    parameter ALU_AND = 4'b0000;
+    parameter ALU_OR  = 4'b0001;
+    parameter ALU_SLT = 4'b0111;
+    
+    always @(*) begin
+        case(alu_op)
+            2'b00: alu_control = ALU_ADD;  // lw, sw
+            2'b01: alu_control = ALU_SUB;  // beq
+            2'b10: begin                  // R-type
+                case(funct)
+                    6'b100000: alu_control = ALU_ADD;  // add
+                    6'b100010: alu_control = ALU_SUB;  // sub
+                    6'b100100: alu_control = ALU_AND;  // and
+                    6'b100101: alu_control = ALU_OR;   // or
+                    6'b101010: alu_control = ALU_SLT;  // slt
+                    default:   alu_control = ALU_ADD;  // default
+                endcase
+            end
+            default: alu_control = ALU_ADD;  // default
+        endcase
+    end
+endmodule
+
+// Módulo da ALU
+module alu(
+    input wire [31:0] a,
+    input wire [31:0] b,
+    input wire [3:0] alu_control,
+    output reg [31:0] result,
+    output wire zero
+);
+    // Códigos da ALU
+    parameter ALU_ADD = 4'b0010;
+    parameter ALU_SUB = 4'b0110;
+    parameter ALU_AND = 4'b0000;
+    parameter ALU_OR  = 4'b0001;
+    parameter ALU_SLT = 4'b0111;
+    
+    always @(*) begin
+        case(alu_control)
+            ALU_ADD: result = a + b;              // add
+            ALU_SUB: result = a - b;              // sub
+            ALU_AND: result = a & b;              // and
+            ALU_OR:  result = a | b;              // or
+            ALU_SLT: result = (a < b) ? 1 : 0;    // slt
+            default: result = 0;
+        endcase
+    end
+    
+    assign zero = (result == 0) ? 1 : 0;
+endmodule
+
+// Módulo do banco de registradores
+module register_file(
+    input wire clk,
+    input wire reset,
+    input wire reg_write,
+    input wire [4:0] read_reg1,
+    input wire [4:0] read_reg2,
+    input wire [4:0] write_reg,
+    input wire [31:0] write_data,
+    output wire [31:0] read_data1,
+    output wire [31:0] read_data2
+);
+    reg [31:0] registers [0:31];
+    integer i;
+    
+    // Inicialização dos registradores
+    initial begin
+        for (i = 0; i < 32; i = i + 1)
+            registers[i] = 32'h00000000;
+    end
+    
+    // Reset
+    always @(posedge reset) begin
+        for (i = 0; i < 32; i = i + 1)
+            registers[i] <= 32'h00000000;
+    end
+    
+    // Escrita no banco de registradores (na borda de descida do clock)
+    always @(negedge clk) begin
+        if (reg_write && write_reg != 0)  // $zero não pode ser modificado
+            registers[write_reg] <= write_data;
+    end
+    
+    // Leitura do banco de registradores
+    assign read_data1 = (read_reg1 == 0) ? 32'h00000000 : registers[read_reg1];
+    assign read_data2 = (read_reg2 == 0) ? 32'h00000000 : registers[read_reg2];
+endmodule
+
+// Módulo da memória de dados
+module data_memory(
+    input wire clk,
+    input wire [31:0] addr,
+    input wire [31:0] write_data,
+    input wire mem_write,
+    input wire mem_read,
+    output wire [31:0] read_data
+);
+    reg [31:0] mem [0:255];  // 256 palavras de 32 bits
+    integer i;
+    
+    // Inicialização da memória
+    initial begin
+        for (i = 0; i < 256; i = i + 1)
+            mem[i] = 32'h00000000;
+        
+        // Dados de exemplo
+        mem[0] = 32'h0000000A;  // Valor 10 no endereço 0
+        mem[1] = 32'h00000014;  // Valor 20 no endereço 1
+    end
+    
+    // Escrita na memória na borda de descida do clock
+    always @(negedge clk) begin
+        if (mem_write)
+            mem[addr[9:2]] <= write_data;
+    end
+    
+    // Leitura da memória
+    assign read_data = mem_read ? mem[addr[9:2]] : 32'h00000000;
+endmodule
+
+// Módulo de teste para o processador MIPS
+module mips_tb();
+    reg clk;
+    reg reset;
+    
+    // Instanciação do processador MIPS
+    mips_monocycle mips(
+        .clk(clk),
+        .reset(reset)
+    );
+    
+    // Geração do clock
+    initial begin
+        clk = 0;
+        forever #5 clk = ~clk;  // Clock com período de 10 unidades de tempo
+    end
+    
+    // Sequência de teste
+    initial begin
+        reset = 1;
+        #20;
+        reset = 0;
+        #200;
+        $finish;
+    end
+    
+    // Monitoramento
+    initial begin
+        $monitor("Time=%0t, PC=%h, Instr=%h", $time, mips.pc_current, mips.instruction);
+    end
+endmodule
