@@ -30,7 +30,7 @@ Este projeto tem como objetivo a implementação de um sistema de um Cpu MIPS mo
   <tr>
     <td align="center">
       <a href="https://github.com/brunoMaximo5">
-        <img src="https://avatars.githubusercontent.com/u/157263012?v=4" width="200px;" border-radius="50%;" alt="Foto do Integrante"/><br>
+        <img src="https://avatars.githubusercontent.com/u/163057251?v=4" width="200px;" border-radius="50%;" alt="Foto do Integrante"/><br>
         <sub><b>Bruno Maximo</b></sub>
       </a>
     </td>
@@ -42,13 +42,13 @@ Este projeto tem como objetivo a implementação de um sistema de um Cpu MIPS mo
     </td>
     <td align="center">
       <a href="https://github.com/talomelo">
-        <img src="https://avatars.githubusercontent.com/u/90536225?v=4" width="200px;" border-radius="50%;" alt="Foto do Integrante"/><br>
+        <img src="https://avatars.githubusercontent.com/u/55456467?v=4" width="200px;" border-radius="50%;" alt="Foto do Integrante"/><br>
         <sub><b>Itallo Melo</b></sub>
       </a>
     </td>
         <td align="center">
       <a href="https://github.com/Solurio">
-        <img src="https://avatars.githubusercontent.com/u/90536225?v=4" width="200px;" border-radius="50%;" alt="Foto do Integrante"/><br>
+        <img src="https://avatars.githubusercontent.com/u/113849792?v=4" width="200px;" border-radius="50%;" alt="Foto do Integrante"/><br>
         <sub><b>William Ricardo</b></sub>
         </a>
     </td>
