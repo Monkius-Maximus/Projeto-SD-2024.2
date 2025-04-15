@@ -1,11 +1,12 @@
-# Projeto-SD-2024.2
+<img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSIntKj6Et3W2rdzXznkiutyRdN-phZtUAGGlLK4wkEG4qUQHuVEMTOYG3FrGH2i8PN4w&usqp=CAU" width="100%">
+
 A repository of the challenge to model a CPU in the Single-cycle MIPS architecture using Verilog.
 Most of the repository is based on computer architeture content.
 
-# <p align="center">Projeto-SD-2024.2 </p>
+# <p align="center">Projeto-SD-2024.2 </p>      
 
 <a name="readme-top"></a>
-# <p align="center">Cpu MIPS monociclico em Verilog/p>
+# <p align="center">**Cpu MIPS monociclico em Verilog**</p>
 
 Este projeto tem como objetivo a implementação de um sistema de um Cpu MIPS monociclico em Verilog aplicando conceitos vistos em sala de aula sobre os conceitos da disciplina CIN0130- Sistemas Digitais
 
