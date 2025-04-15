@@ -10,7 +10,7 @@ Most of the repository is based on computer architeture content.
 
 Este projeto tem como objetivo a implementação de um sistema de um Cpu MIPS monociclico em Verilog aplicando conceitos vistos em sala de aula sobre os conceitos da disciplina CIN0130- Sistemas Digitais
 
-## 1) Membros da `Equipe 1` 👥:
+## 1) Membros da `Equipe ` 👥:
 <br>
 
 
