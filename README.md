@@ -24,8 +24,12 @@ Este projeto tem como objetivo a implementação de um sistema de um Cpu MIPS mo
   
    https://github.com/Monkius-Maximus/Projeto-SD-2024.2
 
+## 3) Considerações finais 
+  Este projeto teve como objetivo desenvolver um processador MIPS utilizando a linguagem Verilog, criando um modelo funcional de um processador simples baseado nessa arquitetura. O foco foi implementar suas principais unidades, como a ALU (Unidade Lógica e Aritmética),   controle de fluxo e gerenciamento de memória. Ao longo da disciplina, sob orientação do professor, fomos guiados por um processo de aprendizagem que explorou a evolução dos processadores, desde os modelos mais antigos até as tecnologias atuais. Essa experiência       permitiu uma compreensão mais profunda sobre o funcionamento dos processadores e sua aplicação no contexto moderno.
+ 
 
-## Integrantes
+
+## 4) Integrantes
 
 <table align="center">
   <tr>
