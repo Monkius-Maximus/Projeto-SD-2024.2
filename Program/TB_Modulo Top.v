@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 
-module TB_All;
+module tb_mips_cpu;
   // Clock e reset para o DUT
   reg clock;
   reg reset;
@@ -81,7 +81,7 @@ module TB_All;
   //====================================================================
   initial begin
     clock = 0;
-    forever #5 clock = ~clock;  // 100 MHz
+    forever #5 clock = ~clock;  // 100 MHz
   end
 
   initial begin
@@ -105,7 +105,7 @@ module TB_All;
 
   // Adder2
   initial begin
-    #30;  // atraso para não misturar com TB1
+    #30;
     $display("\n[TB2] adder2 (branch target) Tests");
     tb2_adder1_out = 4; tb2_shiftout = 8;  #10;
     $display(" in1=4, shift=8 -> out=%0d (exp=12)", tb2_adder2_out);
@@ -157,12 +157,10 @@ module TB_All;
   initial begin
     #240;
     $display("\n[TB6] data_memory Tests");
-    // escreve 42 em addr 0
     tb_dm_we    = 1;
     tb_dm_addr  = 0;
     tb_dm_wdata = 42;
     #10;
-    // lê de addr 0
     tb_dm_we    = 0;
     tb_dm_addr  = 0;
     #10;
@@ -173,7 +171,7 @@ module TB_All;
   // 4) Monitor do DUT completo (mips_cpu)
   //====================================================================
   initial begin
-    #300;  // espera pelos testes modulares
+    #300;
     $display("\n[TB_DUT] Início do monitor do mips_cpu");
     $display("Time(ns)\tPC\tInstr\tWriteData\tZero");
     $display("--------------------------------------------------");
@@ -183,7 +181,7 @@ module TB_All;
       $display("%0t\t%h\t%h\t%h\t%b",
         $time,
         dut.pc_inst.pc_out,
-        dut.inst_mem.instruction,
+        dut.inst_mem.RAM[dut.pc_inst.pc_out>>2],  // leitura direta da ROM
         dut.WriteData_reg,
         dut.zero
       );
@@ -191,12 +189,30 @@ module TB_All;
   end
 
   //====================================================================
-  // 5) Fim geral da simulação
+  // 5) Fim geral dos testes (sem $finish aqui!)
   //====================================================================
   initial begin
-    #600;  // tempo total suficiente para todos os testes + DUT
+    #600;
+    $display("\n>>> TODOS OS TESTES MODULARES COMPLETOS <<<");
+    // note que NÃO fechamos a simulação aqui com $finish,
+    // para permitir o bloco de febre rodar logo em seguida.
+  end
+
+  //====================================================================
+  // 6) Resultado do tratamento de febre
+  //====================================================================
+  initial begin
+    #650;  // aguarda um pouquinho após os testes
+   $display("\n[TB_FEBRE] Verificando data_memory[3] (offset 12 bytes) ...");
+    //  é nessa célula (12/4 = índice 3) que o seu programa grava 1=“febre” ou 0=“sem febre”
+    if (dut.data_mem.RAM[3] === 1)
+      $display(">>> Paciente COM FEBRE <<<");
+    else if (dut.data_mem.RAM[3] === 0)
+      $display(">>> Paciente SEM FEBRE <<<");
+    else
+      $display(">>> Resultado INDETERMINADO <<<");
     $display("\n>>> SIMULAÇÃO FINALIZADA <<<");
-    $finish;
+    $finish;  // agora sim, encerramos a simulação
   end
 
 endmodule
