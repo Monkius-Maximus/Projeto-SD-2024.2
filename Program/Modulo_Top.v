@@ -32,76 +32,113 @@ endmodule
 // -----------------------------------------------------------------------------
 module instruction_memory (
     input  wire [31:0] address,
-    output reg  [31:0] instruction
+    output wire [31:0] instruction
 );
-    reg [31:0] mem [0:31];
+    reg [31:0] RAM[63:0];
+    integer    i;
     initial begin
-        mem[0]  = 32'b00100000000010000000000000000000; // addi $t0,$zero,0
-        mem[1]  = 32'b00100000000010010000000000101000; // addi $t1,$zero,40
-        mem[2]  = 32'b10101101000010010000000000000000; // sw   $t1,0($t0)
-        mem[3]  = 32'b00100000000010010000000000100110; // addi $t1,$zero,38
-        mem[4]  = 32'b10101101000010010000000000000100; // sw   $t1,4($t0)
-        mem[5]  = 32'b10001101000100000000000000000000; // lw   $s0,0($t0)
-        mem[6]  = 32'b10001101000100010000000000000100; // lw   $s1,4($t0)
-        mem[7]  = 32'b00000010000100011001000000101010; // slt  $s2,$s0,$s1
-        mem[8]  = 32'b00010010010010000000000000000010; // beq  $s2,$t0,set_one
-        mem[9]  = 32'b00100000000010010000000000000001; // addi $t1,$zero,1
-        mem[10] = 32'b10101101000010010000000000001100; // sw   $t1,12($t0)
-        mem[11] = 32'b00001000000000000000000000001001; // j    end
-        mem[12] = 32'b00100000000010010000000000000000; // set_one: addi $t1,$zero,0
-        mem[13] = 32'b10101101000010010000000000001100; // sw   $t1,12($t0)
-        mem[14] = 32'b10001101000100110000000000001100; // end: lw $s3,12($t0)
+        // 1) limpa toda a ROM com NOPs (32'b0 = sll $0,$0,0)
+        for (i = 0; i < 64; i = i + 1)
+            RAM[i] = 32'b0;
+        // 2) carrega instruções reais
+        RAM[0]  = 32'b001000_00000_01000_0000000000000000; // addi $t0,$zero,0
+        RAM[1]  = 32'b001000_00000_01001_0000000000101000; // addi $t1,$zero,40
+        RAM[2]  = 32'b101011_01000_01001_0000000000000000; // sw   $t1,0($t0)
+        RAM[3]  = 32'b001000_00000_01001_0000000000010010; // addi $t1,$zero,18
+        RAM[4]  = 32'b101011_01000_01001_0000000000000100; // sw   $t1,4($t0)
+        RAM[5]  = 32'b100011_01000_10000_0000000000000000; // lw   $s0,0($t0)
+        RAM[6]  = 32'b100011_01000_10001_0000000000000100; // lw   $s1,4($t0)
+        RAM[7]  = 32'b000000_10000_10001_10010_00000_101010; // slt  $s2,$s0,$s1
+        RAM[8]  = 32'b000100_10010_01000_0000000000000010; // beq  $s2,$t0,set_one
+        RAM[9]  = 32'b001000_00000_01001_0000000000000001; // addi $t1,$zero,1
+        RAM[10] = 32'b101011_01000_01001_0000000000001100; // sw   $t1,12($t0)
+        RAM[11] = 32'b000010_00000_00000_0000000000001001; // j    end
+        RAM[12] = 32'b001000_00000_01001_0000000000000000; // set_one: addi $t1,$zero,0
+        RAM[13] = 32'b101011_01000_01001_0000000000001100; // sw   $t1,12($t0)
+        RAM[14] = 32'b100011_01000_10011_0000000000001100; // end: lw $s3,12($t0)
     end
-    always @(*) begin
-        instruction = mem[address[31:2]];
-    end
+
+    // word‑addressing
+    assign instruction = RAM[address >> 2];
 endmodule
 
 // -----------------------------------------------------------------------------
 // main_decoder.v
 // -----------------------------------------------------------------------------
-module main_decoder (
+module main_decoder(
     input  wire [5:0] op,
     output reg        regdst,
-    output reg        regwrite,
     output reg        alusrc,
     output reg        memtoreg,
+    output reg        regwrite,
     output reg        memwrite,
     output reg        branch,
     output reg [1:0]  ALUop
 );
     always @(*) begin
+        // DEFAULTS
+        regdst   = 0;
+        alusrc   = 0;
+        memtoreg = 0;
+        regwrite = 0;
+        memwrite = 0;
+        branch   = 0;
+        ALUop    = 2'b00;
         case (op)
-            6'b000000: begin // R-type
-                regdst   = 1; regwrite = 1; alusrc   = 0;
-                memtoreg = 0; memwrite = 0; branch   = 0;
-                ALUop    = 2'b10;
-            end
-            6'b100011: begin // lw
-                regdst   = 0; regwrite = 1; alusrc   = 1;
-                memtoreg = 1; memwrite = 0; branch   = 0;
-                ALUop    = 2'b00;
-            end
-            6'b101011: begin // sw
-                regdst   = 0; regwrite = 0; alusrc   = 1;
-                memtoreg = 0; memwrite = 1; branch   = 0;
-                ALUop    = 2'b00;
-            end
-            6'b000100: begin // beq
-                regdst   = 0; regwrite = 0; alusrc   = 0;
-                memtoreg = 0; memwrite = 0; branch   = 1;
-                ALUop    = 2'b01;
-            end
-            6'b001000: begin // addi
-                regdst   = 0; regwrite = 1; alusrc   = 1;
-                memtoreg = 0; memwrite = 0; branch   = 0;
-                ALUop    = 2'b00;
-            end
-            default: begin
-                regdst   = 0; regwrite = 0; alusrc   = 0;
-                memtoreg = 0; memwrite = 0; branch   = 0;
-                ALUop    = 2'b00;
-            end
+          6'b000000: begin // R‑type
+            regdst   = 1;
+            regwrite = 1;
+            ALUop    = 2'b10;
+          end
+          6'b100011: begin // lw
+            alusrc   = 1;
+            memtoreg = 1;
+            regwrite = 1;
+          end
+          6'b101011: begin // sw
+            alusrc   = 1;
+            memwrite = 1;
+          end
+          6'b000100: begin // beq
+            branch   = 1;
+            ALUop    = 2'b01;
+          end
+          6'b001000: begin // addi
+            alusrc   = 1;
+            regwrite = 1;
+            ALUop    = 2'b00;
+          end
+          default: begin
+            // mantêm defaults
+          end
+        endcase
+    end
+endmodule
+
+// -----------------------------------------------------------------------------
+// ALU_decoder.v
+// -----------------------------------------------------------------------------
+module ALU_decoder(
+    input  wire [1:0] ALUop,
+    input  wire [5:0] funct,
+    output reg  [2:0] ALU_control
+);
+    always @(*) begin
+        // DEFAULT = ADD
+        ALU_control = 3'b010;
+        case (ALUop)
+          2'b00: ALU_control = 3'b010; // lw/sw
+          2'b01: ALU_control = 3'b110; // beq
+          2'b10: begin                 // R‑type
+            case (funct)
+              6'b100000: ALU_control = 3'b010; // ADD
+              6'b100010: ALU_control = 3'b110; // SUB
+              6'b100100: ALU_control = 3'b000; // AND
+              6'b100101: ALU_control = 3'b001; // OR
+              6'b101010: ALU_control = 3'b111; // SLT
+              default:   ALU_control = 3'b010; // NOP
+            endcase
+          end
         endcase
     end
 endmodule
@@ -110,12 +147,12 @@ endmodule
 // mux1.v
 // -----------------------------------------------------------------------------
 module mux1 (
-    input  wire [4:0] inst20_16,
-    input  wire [4:0] inst15_11,
-    input  wire       RegDst,
+    input  wire [4:0] Rt,
+    input  wire [4:0] Rd,
+    input  wire       regdst,
     output wire [4:0] WriteReg
 );
-    assign WriteReg = RegDst ? inst15_11 : inst20_16;
+    assign WriteReg = regdst ? Rd : Rt;
 endmodule
 
 // -----------------------------------------------------------------------------
@@ -123,85 +160,70 @@ endmodule
 // -----------------------------------------------------------------------------
 module register_file (
     input  wire        clk,
-    input  wire        write_enable,
-    input  wire [4:0]  read_address1,
-    input  wire [4:0]  read_address2,
-    input  wire [4:0]  write_address,
-    input  wire [31:0] write_data,
-    output wire [31:0] read_data1,
-    output wire [31:0] read_data2
+    input  wire        regwrite,
+    input  wire [4:0]  ReadReg1,
+    input  wire [4:0]  ReadReg2,
+    input  wire [4:0]  WriteReg,
+    input  wire [31:0] WriteData,
+    output wire [31:0] ReadData1,
+    output wire [31:0] ReadData2
 );
     reg [31:0] regs [0:31];
-    integer i;
+    integer    i;
     initial begin
         for (i = 0; i < 32; i = i + 1)
             regs[i] = 32'b0;
     end
-    assign read_data1 = regs[read_address1];
-    assign read_data2 = regs[read_address2];
+    assign ReadData1 = regs[ReadReg1];
+    assign ReadData2 = regs[ReadReg2];
+
     always @(posedge clk) begin
-        if (write_enable && write_address != 0)
-            regs[write_address] <= write_data;
+        if (regwrite && WriteReg != 0)
+            regs[WriteReg] <= WriteData;
     end
 endmodule
 
 // -----------------------------------------------------------------------------
-// SignExtend.v
+// sign_extend.v
 // -----------------------------------------------------------------------------
-module SignExtend (
-    input  wire [15:0] inst15_0,
+module sign_extend (
+    input  wire [15:0] immediate,
     output wire [31:0] Extend32
 );
-    assign Extend32 = {{16{inst15_0[15]}}, inst15_0};
+    assign Extend32 = {{16{immediate[15]}}, immediate};
+endmodule
+
+// -----------------------------------------------------------------------------
+// shift_left.v
+// -----------------------------------------------------------------------------
+module shift_left (
+    input  wire [31:0] in,
+    output wire [31:0] out
+);
+    assign out = in << 2;
+endmodule
+
+// -----------------------------------------------------------------------------
+// adder2.v
+// -----------------------------------------------------------------------------
+module adder2 (
+    input  wire [31:0] adder1_out,
+    input  wire [31:0] ShiftOut,
+    output wire [31:0] adder2_out
+);
+    assign adder2_out = adder1_out + ShiftOut;
 endmodule
 
 // -----------------------------------------------------------------------------
 // mux2.v
 // -----------------------------------------------------------------------------
 module mux2 (
-    input  wire        ALUSrc,
-    input  wire [31:0] read_data2,
+    input  wire [31:0] ReadData2,
     input  wire [31:0] Extend32,
+    input  wire       alusrc,
     output wire [31:0] ALU_B
 );
-    assign ALU_B = ALUSrc ? Extend32 : read_data2;
-endmodule
-
-// -----------------------------------------------------------------------------
-// ShiftLeft2.v
-// -----------------------------------------------------------------------------
-module ShiftLeft2 (
-    input  wire [31:0] ShiftIn,
-    output wire [31:0] ShiftOut
-);
-    assign ShiftOut = ShiftIn << 2;
-endmodule
-
-// -----------------------------------------------------------------------------
-// ALU_decoder.v
-// -----------------------------------------------------------------------------
-module ALU_decoder (
-    input  wire [5:0]  funct,
-    input  wire [1:0]  ALUop,
-    output reg  [2:0]  ALU_control
-);
-    always @(*) begin
-        case (ALUop)
-            2'b00: ALU_control = 3'b010; // add
-            2'b01: ALU_control = 3'b110; // sub
-            2'b10: begin
-                case (funct)
-                    6'b100000: ALU_control = 3'b010; // add
-                    6'b100010: ALU_control = 3'b110; // sub
-                    6'b100100: ALU_control = 3'b000; // and
-                    6'b100101: ALU_control = 3'b001; // or
-                    6'b101010: ALU_control = 3'b111; // slt
-                    default:   ALU_control = 3'bxxx;
-                endcase
-            end
-            default: ALU_control = 3'bxxx;
-        endcase
-    end
+    assign ALU_B = alusrc ? Extend32 : ReadData2;
 endmodule
 
 // -----------------------------------------------------------------------------
@@ -228,17 +250,6 @@ module ALU (
 endmodule
 
 // -----------------------------------------------------------------------------
-// adder2.v
-// -----------------------------------------------------------------------------
-module adder2 (
-    input  wire [31:0] adder1_out,
-    input  wire [31:0] ShiftOut,
-    output wire [31:0] adder2_out
-);
-    assign adder2_out = adder1_out + ShiftOut;
-endmodule
-
-// -----------------------------------------------------------------------------
 // And_Gate.v
 // -----------------------------------------------------------------------------
 module And_Gate (
@@ -255,14 +266,19 @@ endmodule
 module mux4 (
     input  wire [31:0] adder1_out,
     input  wire [31:0] adder2_out,
-    input  wire        AndGateOut,
-    output wire [31:0] pc_in
+    input  wire       AndGateOut,
+    output reg  [31:0] pc_in
 );
-    assign pc_in = AndGateOut ? adder2_out : adder1_out;
+    always @(*) begin
+        if (AndGateOut === 1'b1)
+            pc_in = adder2_out;
+        else
+            pc_in = adder1_out;
+    end
 endmodule
 
 // -----------------------------------------------------------------------------
-// data_memory.v
+// data_memory.v  ← ALTERADO PARA usar RAM
 // -----------------------------------------------------------------------------
 module data_memory (
     input  wire        clk,
@@ -271,11 +287,13 @@ module data_memory (
     input  wire [31:0] write_data,
     output reg  [31:0] read_data
 );
-    reg [31:0] mem [0:31];
+    // renomeado de 'mem' para 'RAM' para que testbench acesse dut.data_mem.RAM[…]
+    reg [31:0] RAM [0:31];
+
     always @(posedge clk) begin
         if (write_enable)
-            mem[address[31:2]] <= write_data;
-        read_data <= mem[address[31:2]];
+            RAM[address[31:2]] <= write_data;
+        read_data <= RAM[address[31:2]];
     end
 endmodule
 
@@ -285,7 +303,7 @@ endmodule
 module mux3 (
     input  wire [31:0] read_data,
     input  wire [31:0] ALU_result,
-    input  wire        memtoreg,
+    input  wire       memtoreg,
     output wire [31:0] WriteData_reg
 );
     assign WriteData_reg = memtoreg ? read_data : ALU_result;
@@ -295,12 +313,11 @@ endmodule
 // mips_cpu.v
 // -----------------------------------------------------------------------------
 module mips_cpu (
-    input  wire        clock,
-    input  wire        reset
+    input  wire clock,
+    input  wire reset
 );
-    // wires internos
     wire [31:0] pc_in, pc_out, instruction;
-    wire        regdst, regwrite, alusrc, memtoreg, memwrite, branch;
+    wire        regdst, alusrc, memtoreg, regwrite, memwrite, branch;
     wire [1:0]  ALUop;
     wire [4:0]  WriteReg;
     wire [31:0] read_data1, read_data2, Extend32, ALU_B, ShiftOut;
@@ -309,120 +326,36 @@ module mips_cpu (
     wire [31:0] ALU_result, adder1_out, adder2_out, read_data, WriteData_reg;
     wire        AndGateOut;
 
-    program_counter pc_inst (
-        .clk(clock),
-        .reset(reset),
-        .pc_in(pc_in),
-        .pc_out(pc_out)
-    );
-
-    adder1 adder1_inst (
-        .pc_out(pc_out),
-        .adder1_out(adder1_out)
-    );
-
-    instruction_memory inst_mem (
-        .address(pc_out),
-        .instruction(instruction)
-    );
-
-    main_decoder main_dec (
-        .op(instruction[31:26]),
-        .regdst(regdst),
-        .regwrite(regwrite),
-        .alusrc(alusrc),
-        .memtoreg(memtoreg),
-        .memwrite(memwrite),
-        .branch(branch),
-        .ALUop(ALUop)
-    );
-
-    mux1 mux1_inst (
-        .inst20_16(instruction[20:16]),
-        .inst15_11(instruction[15:11]),
-        .RegDst(regdst),
-        .WriteReg(WriteReg)
-    );
-
-    register_file reg_file (
-        .clk(clock),
-        .write_enable(regwrite),
-        .read_address1(instruction[25:21]),
-        .read_address2(instruction[20:16]),
-        .write_address(WriteReg),
-        .write_data(WriteData_reg),
-        .read_data1(read_data1),
-        .read_data2(read_data2)
-    );
-
-    SignExtend sign_ext (
-        .inst15_0(instruction[15:0]),
-        .Extend32(Extend32)
-    );
-
-    mux2 mux2_inst (
-        .ALUSrc(alusrc),
-        .read_data2(read_data2),
-        .Extend32(Extend32),
-        .ALU_B(ALU_B)
-    );
-
-    ShiftLeft2 shift_left (
-        .ShiftIn(Extend32),
-        .ShiftOut(ShiftOut)
-    );
-
-    ALU_decoder alu_dec (
-        .funct(instruction[5:0]),
-        .ALUop(ALUop),
-        .ALU_control(ALU_control)
-    );
-
-    ALU alu (
-        .ALU_Control(ALU_control),
-        .A(read_data1),
-        .B(ALU_B),
-        .ALU_result(ALU_result),
-        .zero(zero)
-    );
-
-    adder2 adder2_inst (
-        .adder1_out(adder1_out),
-        .ShiftOut(ShiftOut),
-        .adder2_out(adder2_out)
-    );
-
-    And_Gate and_gate (
-        .branch(branch),
-        .zero(zero),
-        .AndGateOut(AndGateOut)
-    );
-
-    mux4 mux4_inst (
-        .adder1_out(adder1_out),
-        .adder2_out(adder2_out),
-        .AndGateOut(AndGateOut),
-        .pc_in(pc_in)
-    );
-
-    data_memory data_mem (
-        .clk(clock),
-        .write_enable(memwrite),
-        .address(ALU_result),
-        .write_data(read_data2),
-        .read_data(read_data)
-    );
-
-    mux3 mux3_inst (
-        .read_data(read_data),
-        .ALU_result(ALU_result),
-        .memtoreg(memtoreg),
-        .WriteData_reg(WriteData_reg)
-    );
+    program_counter pc_inst    (.clk(clock),      .reset(reset),     .pc_in(pc_in),      .pc_out(pc_out));
+    adder1          adder1_inst(.pc_out(pc_out), .adder1_out(adder1_out));
+    instruction_memory inst_mem(.address(pc_out), .instruction(instruction));
+    main_decoder    main_dec   (.op(instruction[31:26]),
+                                .regdst(regdst), .alusrc(alusrc),
+                                .memtoreg(memtoreg), .regwrite(regwrite),
+                                .memwrite(memwrite), .branch(branch),
+                                .ALUop(ALUop));
+    register_file   regfile    (.clk(clock), .regwrite(regwrite),
+                                .ReadReg1(instruction[25:21]),
+                                .ReadReg2(instruction[20:16]),
+                                .WriteReg(WriteReg),
+                                .WriteData(WriteData_reg),
+                                .ReadData1(read_data1),
+                                .ReadData2(read_data2));
+    sign_extend     sign_ext   (.immediate(instruction[15:0]), .Extend32(Extend32));
+    shift_left      left_shift(.in(Extend32), .out(ShiftOut));
+    adder2          adder2_inst(.adder1_out(adder1_out), .ShiftOut(ShiftOut), .adder2_out(adder2_out));
+    ALU_decoder     alu_dec    (.ALUop(ALUop), .funct(instruction[5:0]), .ALU_control(ALU_control));
+    mux2            mux2_inst  (.ReadData2(read_data2), .Extend32(Extend32), .alusrc(alusrc), .ALU_B(ALU_B));
+    ALU             alu_inst   (.ALU_Control(ALU_control), .A(read_data1), .B(ALU_B), .ALU_result(ALU_result), .zero(zero));
+    And_Gate        and_inst   (.branch(branch), .zero(zero), .AndGateOut(AndGateOut));
+    mux4            mux4_inst  (.adder1_out(adder1_out), .adder2_out(adder2_out), .AndGateOut(AndGateOut), .pc_in(pc_in));
+    data_memory     data_mem   (.clk(clock), .write_enable(memwrite), .address(ALU_result), .write_data(read_data2), .read_data(read_data));
+    mux3            mux3_inst  (.read_data(read_data), .ALU_result(ALU_result), .memtoreg(memtoreg), .WriteData_reg(WriteData_reg));
+    mux1            mux1_inst  (.Rt(instruction[20:16]), .Rd(instruction[15:11]), .regdst(regdst), .WriteReg(WriteReg));
 endmodule
 
 // -----------------------------------------------------------------------------
-// top.v — instância única para síntese/simulação
+// top.v — para síntese/simulação no EDA Playground
 // -----------------------------------------------------------------------------
 module top (
     input  wire clock,
